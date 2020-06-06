@@ -1,0 +1,31 @@
+---
+title: "Data Exploration"
+output: 
+  html_notebook: 
+    number_sections: yes
+    toc: yes
+---
+
+# Introduction
+In this notebook I carry out basic exploration of the data set. Observations and notes made here will be used to inform feature generation, source code creation, and model selection. 
+
+The ultimate goal of this project is to develop a machine learning model that can accurately identify online gamblers prone to addiction based on their gambling behavior. The data source used for this project is [Behavioral Characteristics of Internet Gamblers Who Trigger Corporate Responsible Gambling Interventions](http://www.thetransparencyproject.org/datasets) and is included in the repository. The details of the data set are documented in the [Codebook](../references/Code Book.pdf)
+
+# Data Load & Inspection
+```{r setup, collapse=TRUE}
+library(readr)
+library(tibble)
+library(dplyr)
+library(magrittr)
+library(ggplot2)
+```
+
+```{r, collapse=TRUE}
+df <- read_csv(file.path("..", 'data', 'raw', 'gambling.csv'))
+
+print(dim(df))
+df %>% 
+    as_tibble() %>% 
+    head()
+```
+
