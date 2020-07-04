@@ -18,9 +18,10 @@ library(tibble)
 library(dplyr)
 library(magrittr)
 library(ggplot2)
+library(GGally)
 ```
 
-```{r, collapse=TRUE}
+```{r, collapse=TRUE,}
 df <- read_csv(file.path("..", 'data', 'raw', 'gambling.csv'))
 
 print(dim(df))
@@ -28,4 +29,64 @@ df %>%
     as_tibble() %>% 
     head()
 ```
+## Remove the `non_zero` columns 
+
+When reading the data documentation it appears the original researchers created columns that simply added a constant to original value. I don't find this to be a particularly useful transformation, so I'm going to remove these columns from the analysis. 
+```{r}
+df <- df %>% select(!contains('nonzero'))
+```
+
+## Check for missing values
+
+### Records without Daily Aggregates 
+In the data documentation we are informed there are 21 records without daily aggregates. Before looking at general missing data, I want to understand these 21 records. 
+```{r missing_aggregates}
+df %>% filter(Missing_Daily_Transactions == 1)
+```
+For these 21 records all of the gambling behavior is missing. There isn't a practical way to impute this data and these 21 records are a small fraction of the data set. The best way to handle this is to simply remove these observations.
+
+I can easily remove them in the development using `Missing_Daily_transactions`, but this doesn't make sense in production.  I'll need to develop a method or function for removing records where all behavior data is absent. 
+
+```{r check_na}
+# Remove records with missing gambling behaivor. 
+df <- df %>% 
+  filter(Missing_Daily_Transactions == 0)
+
+df %>% 
+  summarise_all(funs(sum(is.na(.)))) %>% 
+  t()
+```
+There are quite a few null values present in the data set. In the case of demographic values, I might try to impute them. When it refers to specific games, I believe I can assume that it means the particular individual didn't play that type of game.  I should therefore impute these missing values to be zero for modeling purposes. In fact the data dictionary indicates that zero has been imputed in transformed columns with names like *\_sqrt_zeros*. 
+
+
+
+# Casino Games
+
+## Distribution of Casino Variables
+```{r}
+casino_games <- df %>% select(contains('casino'), RG_case) 
+
+col_names <-  names(casino_games)
+# Plot distribution of the casino game variables. 
+for (i in seq_along(col_names)) {
+  #print(i)
+  a <- casino_games %>% 
+    ggplot(., aes_string(x = col_names[i])) + 
+      geom_histogram() 
+  print(a)
+}
+```
+
+## Distribution of Casino Variables by Target
+```{r comp_dist}
+for (i in seq_along(col_names)) {
+  #print(i)
+  a <- casino_games %>% 
+    mutate(RG_case = as.factor(RG_case)) %>% 
+    ggplot(., aes_string(y = col_names[i], x = "RG_case")) + 
+      geom_boxplot() 
+  print(a)
+}
+```
+
 
