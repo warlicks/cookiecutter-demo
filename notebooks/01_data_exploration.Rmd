@@ -48,7 +48,7 @@ For these 21 records all of the gambling behavior is missing. There isn't a prac
 I can easily remove them in the development using `Missing_Daily_transactions`, but this doesn't make sense in production.  I'll need to develop a method or function for removing records where all behavior data is absent. 
 
 ```{r check_na}
-# Remove records with missing gambling behaivor. 
+# Remove records with missing gambling behavior. 
 df <- df %>% 
   filter(Missing_Daily_Transactions == 0)
 
@@ -58,7 +58,11 @@ df %>%
 ```
 There are quite a few null values present in the data set. In the case of demographic values, I might try to impute them. When it refers to specific games, I believe I can assume that it means the particular individual didn't play that type of game.  I should therefore impute these missing values to be zero for modeling purposes. In fact the data dictionary indicates that zero has been imputed in transformed columns with names like *\_sqrt_zeros*. 
 
+As I think about it a little more I'm going to eliminate the transformed features where they didn't impute zero (*\*\_sqrt*). These are just a duplicate and the imputed zero is more informative than a null. 
 
+```{r remove_sqrt_non_zero}
+df <- df %>% select(!ends_with('_sqrt'))
+```
 
 # Casino Games
 
@@ -66,7 +70,12 @@ There are quite a few null values present in the data set. In the case of demogr
 ```{r}
 casino_games <- df %>% select(contains('casino'), RG_case) 
 
-col_names <-  names(casino_games)
+# Produce Summary Stats
+summary_df <- casino_games %>% 
+  summarise_all(list(min = min, mean = mean,median = median, sd = sd, max = max),
+                na.rm = TRUE)
+
+col_names <-  sort(names(casino_games))
 # Plot distribution of the casino game variables. 
 for (i in seq_along(col_names)) {
   #print(i)
@@ -76,8 +85,13 @@ for (i in seq_along(col_names)) {
   print(a)
 }
 ```
+All of the variables have distributions that are very skewed to the right.  This isn't unsurprising given that money is involved (almost all money related measure look like this) and we have some users who gamble heavily, so we would expect there to be some extreme values. 
+
+These observations suggest that we likely need to scale or transform the data. This will help reduce the influence of extreme values when building the model. The square root transformed variables are one way of doing this. When we look at `bets_per_day_casino` vs `bets_per_day_casino_sqrt_zeros` we see that the shape is the same but the range is just smaller. (`bets_per_day_casino`: `r min(casino_games$bets_per_day_casino, na.rm=TRUE)` - `r max(casino_games$bets_per_day_casino, na.rm=TRUE)` vs  `bets_per_day_casino_sqrt_zeros`: `r min(casino_games$bets_per_day_casino_sqrt_zeros)` - `r max(casino_games$bets_per_day_casino_sqrt_zeros)`)  
 
 ## Distribution of Casino Variables by Target
+
+In plots below I want to start comparing our casino game measures between our two classes.  I want to be able to see differences in these groups as an initial indicator that we can successfully model users who might be prone to gambling addiction. 
 ```{r comp_dist}
 for (i in seq_along(col_names)) {
   #print(i)
@@ -89,4 +103,86 @@ for (i in seq_along(col_names)) {
 }
 ```
 
+In almost all of the box plots above we see that there are differences between our two groups. It is true there is overlap between the groups, but we can see differences. These differences appear stronger when the data is scaled with the square root transformation. This might be the impact of zero being imputed for the missing values.  I'll need to remember to check on this when feature engineering. 
 
+# Live Action  
+
+## Distribution of Live Action Variables
+```{r live_action_vars}
+# Create data frame
+live_action <- df %>% 
+  select(contains('liveaction'), RG_case)
+
+live_cols <-  sort(names(live_action))
+# Plot distribution of the casino game variables. 
+for (i in seq_along(live_cols)) {
+  #print(i)
+  a <- live_action %>% 
+    ggplot(., aes_string(x = live_cols[i])) + 
+      geom_histogram() +
+      labs(title = live_cols[i])
+  print(a)
+}
+```
+## Distribution of Live Action Variables By Target Class 
+```{r live_action_boxlot}
+for (i in seq_along(live_cols)) {
+  #print(i)
+  a <- live_action %>% 
+    mutate(RG_case = as.factor(RG_case)) %>% 
+    ggplot(., aes_string(y = live_cols[i], x="RG_case")) + 
+      geom_boxplot() +
+      labs(title = live_cols[i])
+  print(a)
+}
+```
+
+My initial impression is that we see less overlap between or non-problematic and problematic gamblers. Live action variables are likely to be very important in our model. 
+
+# Fixed Odds
+
+## Distribution of Variables 
+```{r fix_odds_dist}
+# Create data frame
+fixedodds <- df %>% 
+  select(contains('fixedodds'), RG_case)
+
+fixed_odd_cols <-  sort(names(fixedodds))
+# Plot distribution of the casino game variables. 
+for (i in seq_along(fixed_odd_cols)) {
+  #print(i)
+  a <- fixedodds %>% 
+    ggplot(., aes_string(x = fixed_odd_cols[i])) + 
+      geom_histogram() +
+      labs(title = fixed_odd_cols[i])
+  print(a)
+}
+```
+
+```{r}
+# Plot distribution of the casino game variables. 
+for (i in seq_along(fixed_odd_cols)) {
+  #print(i)
+  a <- fixedodds %>% 
+    mutate(RG_case = as.factor(RG_case)) %>% 
+    ggplot(., aes_string(y = fixed_odd_cols[i], x = 'RG_case')) + 
+      geom_boxplot() +
+      labs(title = fixed_odd_cols[i])
+  print(a)
+}
+```
+
+There seems to be more separation with with the fixed odds compared to the casino games. 
+
+# Conclusions & Next Steps
+
+**Tools To Build**  
+- [ ] Column Selection  
+- [ ] Detect all null gambling behavior.   
+
+**Things To Explore**
+- [ ] Method(s) for missing data imputation
+- [ ] Develop Features number of game types. 
+
+**Experiments**
+What is the best data. Square root transformed vs non-transformed vs. standardized vs. all. I still need to think about how to design these experiments.
